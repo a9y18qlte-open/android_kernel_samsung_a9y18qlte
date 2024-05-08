@@ -466,6 +466,27 @@ static inline int z_erofs_load_lz4_config(struct super_block *sb,
 }
 #endif	/* !CONFIG_EROFS_FS_ZIP */
 
+#ifdef CONFIG_EROFS_FS_ZIP_ZSTD
+int __init z_erofs_zstd_init(void);
+void z_erofs_zstd_exit(void);
+int z_erofs_load_zstd_config(struct super_block *sb,
+			     struct erofs_super_block *dsb,
+			     void *data, int size);
+#else
+static inline int z_erofs_zstd_init(void) { return 0; }
+static inline void z_erofs_zstd_exit(void) {}
+static inline int z_erofs_load_zstd_config(struct super_block *sb,
+					   struct erofs_super_block *dsb,
+					   void *data, int size)
+{
+	if (data) {
+		erofs_err(sb, "zstd algorithm isn't enabled");
+		return -EINVAL;
+	}
+	return 0;
+}
+#endif	/* !CONFIG_EROFS_FS_ZIP_ZSTD */
+
 #define EFSCORRUPTED    EUCLEAN         /* Filesystem is corrupted */
 
 #ifndef lru_to_page

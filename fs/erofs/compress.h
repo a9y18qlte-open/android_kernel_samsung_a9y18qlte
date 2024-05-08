@@ -20,6 +20,12 @@ struct z_erofs_decompress_req {
 	bool inplace_io, partial_decoding;
 };
 
+struct z_erofs_decompressor {
+	int (*decompress)(struct z_erofs_decompress_req *rq,
+			  struct list_head *pagepool);
+	char *name;
+};
+
 /* some special page->private (unsigned long, see below) */
 #define Z_EROFS_SHORTLIVED_PAGE		(-1UL << 2)
 #define Z_EROFS_PREALLOCATED_PAGE	(-2UL << 2)
@@ -77,5 +83,7 @@ static inline bool z_erofs_put_shortlivedpage(struct list_head *pagepool,
 
 int z_erofs_decompress(struct z_erofs_decompress_req *rq,
 		       struct list_head *pagepool);
+int z_erofs_zstd_decompress(struct z_erofs_decompress_req *rq,
+			    struct list_head *pagepool);
 
 #endif
