@@ -146,7 +146,7 @@ int z_erofs_zstd_decompress(struct z_erofs_decompress_req *rq,
 		PAGE_ALIGN(rq->inputsize) >> PAGE_SHIFT;
 	ZSTD_DStream *stream;
 	struct super_block *sb = rq->sb;
-	unsigned int insz, outsz, pofs, inputmargin;
+	unsigned int insz, outsz, pofs, inputmargin, avail_out;
 	struct z_erofs_zstd *strm;
 	ZSTD_inBuffer in_buf = { NULL, 0, 0 };
 	ZSTD_outBuffer out_buf = { NULL, 0, 0 };
@@ -250,14 +250,17 @@ int z_erofs_zstd_decompress(struct z_erofs_decompress_req *rq,
 			rq->in[j] = tmppage;
 		}
 		zerr = ZSTD_decompressStream(stream, &out_buf, &in_buf);
-		if (ZSTD_isError(zerr) || (!zerr && outsz)) {
+		avail_out = out_buf.size - out_buf.pos;
+		if (ZSTD_isError(zerr) ||
+		    ((outsz + avail_out) && (!zerr || (zerr > 0 &&
+				!(insz + in_buf.size - in_buf.pos))))) {
 			erofs_err(sb, "failed to decompress in[%u] out[%u]: error %d",
 				  rq->inputsize, rq->outputsize,
-				  zerr ? (int)ZSTD_getErrorCode(zerr) : -EUCLEAN);
+				  ZSTD_isError(zerr) ? (int)ZSTD_getErrorCode(zerr) : -EUCLEAN);
 			err = -EFSCORRUPTED;
 			break;
 		}
-	} while (outsz || out_buf.pos < out_buf.size);
+	} while (outsz + avail_out);
 
 	if (kout)
 		kunmap(rq->out[no]);
