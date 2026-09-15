@@ -1,6 +1,21 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * (C) Copyright David Gibson <dwg@au1.ibm.com>, IBM Corporation.  2005.
+ *
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ *  General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program; if not, write to the Free Software
+ *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307
+ *                                                                   USA
  */
 
 #include "dtc.h"
@@ -34,7 +49,7 @@ static struct version_info {
 
 struct emitter {
 	void (*cell)(void *, cell_t);
-	void (*string)(void *, const char *, int);
+	void (*string)(void *, char *, int);
 	void (*align)(void *, int);
 	void (*data)(void *, struct data);
 	void (*beginnode)(void *, struct label *labels);
@@ -49,7 +64,7 @@ static void bin_emit_cell(void *e, cell_t val)
 	*dtbuf = data_append_cell(*dtbuf, val);
 }
 
-static void bin_emit_string(void *e, const char *str, int len)
+static void bin_emit_string(void *e, char *str, int len)
 {
 	struct data *dtbuf = e;
 
@@ -124,20 +139,27 @@ static void asm_emit_cell(void *e, cell_t val)
 {
 	FILE *f = e;
 
-	fprintf(f, "\t.byte\t0x%02x\n" "\t.byte\t0x%02x\n"
-		"\t.byte\t0x%02x\n" "\t.byte\t0x%02x\n",
+	fprintf(f, "\t.byte 0x%02x; .byte 0x%02x; .byte 0x%02x; .byte 0x%02x\n",
 		(val >> 24) & 0xff, (val >> 16) & 0xff,
 		(val >> 8) & 0xff, val & 0xff);
 }
 
-static void asm_emit_string(void *e, const char *str, int len)
+static void asm_emit_string(void *e, char *str, int len)
 {
 	FILE *f = e;
+	char c = 0;
 
-	if (len != 0)
-		fprintf(f, "\t.asciz\t\"%.*s\"\n", len, str);
-	else
-		fprintf(f, "\t.asciz\t\"%s\"\n", str);
+	if (len != 0) {
+		/* XXX: ewww */
+		c = str[len];
+		str[len] = '\0';
+	}
+
+	fprintf(f, "\t.string\t\"%s\"\n", str);
+
+	if (len != 0) {
+		str[len] = c;
+	}
 }
 
 static void asm_emit_align(void *e, int a)
@@ -150,14 +172,14 @@ static void asm_emit_align(void *e, int a)
 static void asm_emit_data(void *e, struct data d)
 {
 	FILE *f = e;
-	unsigned int off = 0;
+	int off = 0;
 	struct marker *m = d.markers;
 
 	for_each_marker_of_type(m, LABEL)
 		emit_offset_label(f, m->ref, m->offset);
 
 	while ((d.len - off) >= sizeof(uint32_t)) {
-		asm_emit_cell(e, dtb_ld32(d.val + off));
+		asm_emit_cell(e, fdt32_to_cpu(*((uint32_t *)(d.val+off))));
 		off += sizeof(uint32_t);
 	}
 
@@ -220,7 +242,7 @@ static struct emitter asm_emitter = {
 
 static int stringtable_insert(struct data *d, const char *str)
 {
-	unsigned int i;
+	int i;
 
 	/* FIXME: do this more efficiently? */
 
@@ -296,16 +318,17 @@ static struct data flatten_reserve_list(struct reserve_info *reservelist,
 {
 	struct reserve_info *re;
 	struct data d = empty_data;
-	unsigned int j;
+	static struct fdt_reserve_entry null_re = {0,0};
+	int    j;
 
 	for (re = reservelist; re; re = re->next) {
-		d = data_append_re(d, re->address, re->size);
+		d = data_append_re(d, &re->re);
 	}
 	/*
 	 * Add additional reserved slots if the user asked for them.
 	 */
 	for (j = 0; j < reservenum; j++) {
-		d = data_append_re(d, 0, 0);
+		d = data_append_re(d, &null_re);
 	}
 
 	return d;
@@ -346,7 +369,7 @@ static void make_fdt_header(struct fdt_header *fdt,
 void dt_to_blob(FILE *f, struct dt_info *dti, int version)
 {
 	struct version_info *vi = NULL;
-	unsigned int i;
+	int i;
 	struct data blob       = empty_data;
 	struct data reservebuf = empty_data;
 	struct data dtbuf      = empty_data;
@@ -379,7 +402,7 @@ void dt_to_blob(FILE *f, struct dt_info *dti, int version)
 			padlen = 0;
 			if (quiet < 1)
 				fprintf(stderr,
-					"Warning: blob size %"PRIu32" >= minimum size %d\n",
+					"Warning: blob size %d >= minimum size %d\n",
 					fdt32_to_cpu(fdt.totalsize), minsize);
 		}
 	}
@@ -439,7 +462,7 @@ static void dump_stringtable_asm(FILE *f, struct data strbuf)
 
 	while (p < (strbuf.val + strbuf.len)) {
 		len = strlen(p);
-		fprintf(f, "\t.asciz \"%s\"\n", p);
+		fprintf(f, "\t.string \"%s\"\n", p);
 		p += len+1;
 	}
 }
@@ -447,7 +470,7 @@ static void dump_stringtable_asm(FILE *f, struct data strbuf)
 void dt_to_asm(FILE *f, struct dt_info *dti, int version)
 {
 	struct version_info *vi = NULL;
-	unsigned int i;
+	int i;
 	struct data strbuf = empty_data;
 	struct reserve_info *re;
 	const char *symprefix = "dt";
@@ -503,7 +526,7 @@ void dt_to_asm(FILE *f, struct dt_info *dti, int version)
 	 * Reserve map entries.
 	 * Align the reserve map to a doubleword boundary.
 	 * Each entry is an (address, size) pair of u64 values.
-	 * Always supply a zero-sized termination entry.
+	 * Always supply a zero-sized temination entry.
 	 */
 	asm_emit_align(f, 8);
 	emit_label(f, symprefix, "reserve_map");
@@ -511,7 +534,7 @@ void dt_to_asm(FILE *f, struct dt_info *dti, int version)
 	fprintf(f, "/* Memory reserve map from source file */\n");
 
 	/*
-	 * Use .long on high and low halves of u64s to avoid .quad
+	 * Use .long on high and low halfs of u64s to avoid .quad
 	 * as it appears .quad isn't available in some assemblers.
 	 */
 	for (re = dti->reservelist; re; re = re->next) {
@@ -521,11 +544,11 @@ void dt_to_asm(FILE *f, struct dt_info *dti, int version)
 			fprintf(f, "\t.globl\t%s\n", l->label);
 			fprintf(f, "%s:\n", l->label);
 		}
-		ASM_EMIT_BELONG(f, "0x%08x", (unsigned int)(re->address >> 32));
+		ASM_EMIT_BELONG(f, "0x%08x", (unsigned int)(re->re.address >> 32));
 		ASM_EMIT_BELONG(f, "0x%08x",
-				(unsigned int)(re->address & 0xffffffff));
-		ASM_EMIT_BELONG(f, "0x%08x", (unsigned int)(re->size >> 32));
-		ASM_EMIT_BELONG(f, "0x%08x", (unsigned int)(re->size & 0xffffffff));
+				(unsigned int)(re->re.address & 0xffffffff));
+		ASM_EMIT_BELONG(f, "0x%08x", (unsigned int)(re->re.size >> 32));
+		ASM_EMIT_BELONG(f, "0x%08x", (unsigned int)(re->re.size & 0xffffffff));
 	}
 	for (i = 0; i < reservenum; i++) {
 		fprintf(f, "\t.long\t0, 0\n\t.long\t0, 0\n");
@@ -586,7 +609,7 @@ static void flat_read_chunk(struct inbuf *inb, void *p, int len)
 
 static uint32_t flat_read_word(struct inbuf *inb)
 {
-	fdt32_t val;
+	uint32_t val;
 
 	assert(((inb->ptr - inb->base) % sizeof(val)) == 0);
 
@@ -604,11 +627,11 @@ static void flat_realign(struct inbuf *inb, int align)
 		die("Premature end of data parsing flat device tree\n");
 }
 
-static const char *flat_read_string(struct inbuf *inb)
+static char *flat_read_string(struct inbuf *inb)
 {
 	int len = 0;
 	const char *p = inb->ptr;
-	const char *str;
+	char *str;
 
 	do {
 		if (p >= inb->limit)
@@ -616,7 +639,7 @@ static const char *flat_read_string(struct inbuf *inb)
 		len++;
 	} while ((*p++) != '\0');
 
-	str = inb->ptr;
+	str = xstrdup(inb->ptr);
 
 	inb->ptr += len;
 
@@ -678,7 +701,7 @@ static struct property *flat_read_property(struct inbuf *dtbuf,
 
 	val = flat_read_data(dtbuf, proplen);
 
-	return build_property(name, val, NULL);
+	return build_property(name, val);
 }
 
 
@@ -695,15 +718,13 @@ static struct reserve_info *flat_read_mem_reserve(struct inbuf *inb)
 	 * First pass, count entries.
 	 */
 	while (1) {
-		uint64_t address, size;
-
 		flat_read_chunk(inb, &re, sizeof(re));
-		address  = fdt64_to_cpu(re.address);
-		size = fdt64_to_cpu(re.size);
-		if (size == 0)
+		re.address  = fdt64_to_cpu(re.address);
+		re.size = fdt64_to_cpu(re.size);
+		if (re.size == 0)
 			break;
 
-		new = build_reserve_entry(address, size);
+		new = build_reserve_entry(re.address, re.size);
 		reservelist = add_reserve_entry(reservelist, new);
 	}
 
@@ -711,13 +732,13 @@ static struct reserve_info *flat_read_mem_reserve(struct inbuf *inb)
 }
 
 
-static const char *nodename_from_path(const char *ppath, const char *cpath)
+static char *nodename_from_path(const char *ppath, const char *cpath)
 {
 	int plen;
 
 	plen = strlen(ppath);
 
-	if (!strstarts(cpath, ppath))
+	if (!strneq(ppath, cpath, plen))
 		die("Path \"%s\" is not valid as a child of \"%s\"\n",
 		    cpath, ppath);
 
@@ -725,7 +746,7 @@ static const char *nodename_from_path(const char *ppath, const char *cpath)
 	if (!streq(ppath, "/"))
 		plen++;
 
-	return cpath + plen;
+	return xstrdup(cpath + plen);
 }
 
 static struct node *unflatten_tree(struct inbuf *dtbuf,
@@ -733,18 +754,17 @@ static struct node *unflatten_tree(struct inbuf *dtbuf,
 				   const char *parent_flatname, int flags)
 {
 	struct node *node;
-	const char *flatname;
+	char *flatname;
 	uint32_t val;
 
-	node = build_node(NULL, NULL, NULL);
+	node = build_node(NULL, NULL);
 
 	flatname = flat_read_string(dtbuf);
 
 	if (flags & FTF_FULLPATH)
-		node->name = xstrdup(nodename_from_path(parent_flatname,
-							flatname));
+		node->name = nodename_from_path(parent_flatname, flatname);
 	else
-		node->name = xstrdup(flatname);
+		node->name = flatname;
 
 	do {
 		struct property *prop;
@@ -786,6 +806,10 @@ static struct node *unflatten_tree(struct inbuf *dtbuf,
 		}
 	} while (val != FDT_END_NODE);
 
+	if (node->name != flatname) {
+		free(flatname);
+	}
+
 	return node;
 }
 
@@ -793,7 +817,6 @@ static struct node *unflatten_tree(struct inbuf *dtbuf,
 struct dt_info *dt_from_blob(const char *fname)
 {
 	FILE *f;
-	fdt32_t magic_buf, totalsize_buf;
 	uint32_t magic, totalsize, version, size_dt, boot_cpuid_phys;
 	uint32_t off_dt, off_str, off_mem_rsvmap;
 	int rc;
@@ -807,11 +830,10 @@ struct dt_info *dt_from_blob(const char *fname)
 	struct node *tree;
 	uint32_t val;
 	int flags = 0;
-	unsigned int dtsflags = DTSF_V1;
 
 	f = srcfile_relative_open(fname, NULL);
 
-	rc = fread(&magic_buf, sizeof(magic_buf), 1, f);
+	rc = fread(&magic, sizeof(magic), 1, f);
 	if (ferror(f))
 		die("Error reading DT blob magic number: %s\n",
 		    strerror(errno));
@@ -822,11 +844,11 @@ struct dt_info *dt_from_blob(const char *fname)
 			die("Mysterious short read reading magic number\n");
 	}
 
-	magic = fdt32_to_cpu(magic_buf);
+	magic = fdt32_to_cpu(magic);
 	if (magic != FDT_MAGIC)
 		die("Blob has incorrect magic number\n");
 
-	rc = fread(&totalsize_buf, sizeof(totalsize_buf), 1, f);
+	rc = fread(&totalsize, sizeof(totalsize), 1, f);
 	if (ferror(f))
 		die("Error reading DT blob size: %s\n", strerror(errno));
 	if (rc < 1) {
@@ -836,7 +858,7 @@ struct dt_info *dt_from_blob(const char *fname)
 			die("Mysterious short read reading blob size\n");
 	}
 
-	totalsize = fdt32_to_cpu(totalsize_buf);
+	totalsize = fdt32_to_cpu(totalsize);
 	if (totalsize < FDT_V1_SIZE)
 		die("DT blob size (%d) is too small\n", totalsize);
 
@@ -920,8 +942,5 @@ struct dt_info *dt_from_blob(const char *fname)
 
 	fclose(f);
 
-	if (get_subnode(tree, "__fixups__") || get_subnode(tree, "__local_fixups__"))
-		dtsflags |= DTSF_PLUGIN;
-
-	return build_dt_info(dtsflags, reservelist, tree, boot_cpuid_phys);
+	return build_dt_info(DTSF_V1, reservelist, tree, boot_cpuid_phys);
 }
