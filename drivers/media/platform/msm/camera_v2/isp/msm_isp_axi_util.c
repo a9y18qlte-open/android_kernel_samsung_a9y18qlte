@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2018, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2020, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -236,6 +236,10 @@ static int msm_isp_validate_axi_request(struct vfe_device *vfe_dev,
 	case V4L2_PIX_FMT_P16GBRG10:
 	case V4L2_PIX_FMT_P16GRBG10:
 	case V4L2_PIX_FMT_P16RGGB10:
+	case V4L2_PIX_FMT_P16BGGR12:
+	case V4L2_PIX_FMT_P16GBRG12:
+	case V4L2_PIX_FMT_P16GRBG12:
+	case V4L2_PIX_FMT_P16RGGB12:
 	case V4L2_PIX_FMT_JPEG:
 	case V4L2_PIX_FMT_META:
 	case V4L2_PIX_FMT_META10:
@@ -379,6 +383,10 @@ static uint32_t msm_isp_axi_get_plane_size(
 	case V4L2_PIX_FMT_P16GBRG10:
 	case V4L2_PIX_FMT_P16GRBG10:
 	case V4L2_PIX_FMT_P16RGGB10:
+	case V4L2_PIX_FMT_P16BGGR12:
+	case V4L2_PIX_FMT_P16GBRG12:
+	case V4L2_PIX_FMT_P16GRBG12:
+	case V4L2_PIX_FMT_P16RGGB12:
 		size = plane_cfg[plane_idx].output_height *
 		plane_cfg[plane_idx].output_width;
 		break;
@@ -2193,8 +2201,8 @@ static int msm_isp_process_done_buf(struct vfe_device *vfe_dev,
 			MSM_ISP_BUFFER_STATE_PUT_BUF;
 		buf->buf_debug.put_state_last ^= 1;
 		rc = vfe_dev->buf_mgr->ops->buf_done(vfe_dev->buf_mgr,
-			buf->bufq_handle, buf->buf_idx, time_stamp,
-			frame_id, stream_info->runtime_output_format);
+		 buf->bufq_handle, buf->buf_idx, time_stamp,
+		 frame_id, stream_info->runtime_output_format);
 		if (rc == -EFAULT) {
 			msm_isp_halt_send_error(vfe_dev,
 					ISP_EVENT_BUF_FATAL_ERROR);
