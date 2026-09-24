@@ -17966,6 +17966,7 @@
 
 		ramoops@84D00000 {
 			compatible = "ramoops";
+			no-map;
 			reg = <0x0 0x84d00000 0x0 0x100000>;
 			record-size = <0x40000>;
 			console-size = <0x40000>;
