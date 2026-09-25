@@ -14220,8 +14220,6 @@ static ssize_t show_wificableinfo(struct kobject *kobj,
 	struct device_node *np;
 	int wifi_cable1 = 0;
 	int wifi_cable2 = 0;
-	char antbuffer[2] = {0};
-	
 	np = of_find_compatible_node(NULL, NULL, "samsung,rome_cable");
 
 	if (!np) {
@@ -14238,9 +14236,7 @@ static ssize_t show_wificableinfo(struct kobject *kobj,
 	printk(KERN_ERR "%s : gpio=%d value = %d \n",__FUNCTION__, wifi_cable1, gpio_get_value(wifi_cable1));
 	printk(KERN_ERR "%s : gpio=%d value = %d \n",__FUNCTION__, wifi_cable2, gpio_get_value(wifi_cable2));
 	
-	sprintf(antbuffer, "%c%c\n", (gpio_get_value(wifi_cable1) > 0) ? 'D' : 'E' , (gpio_get_value(wifi_cable2) > 0) ? 'D' : 'E');
-	
-	return scnprintf(buf, PAGE_SIZE, "%s", antbuffer);
+	return scnprintf(buf, PAGE_SIZE, "%c%c\n", (gpio_get_value(wifi_cable1) > 0) ? 'D' : 'E', (gpio_get_value(wifi_cable2) > 0) ? 'D' : 'E');
 }
 #else 
 static ssize_t show_wificableinfo(struct kobject *kobj,
@@ -14249,8 +14245,6 @@ static ssize_t show_wificableinfo(struct kobject *kobj,
 {
 	struct device_node *np;
 	int wifi_cable = 0;
-	char antbuffer[1] = {0};
-
 	np = of_find_compatible_node(NULL, NULL, "samsung,rome_cable");
 
 	if (!np) {
@@ -14262,9 +14256,8 @@ static ssize_t show_wificableinfo(struct kobject *kobj,
 	printk(KERN_INFO "%s : gpio=%d value = %d \n",__FUNCTION__, wifi_cable, gpio_get_value(wifi_cable)); 
 
 	printk(KERN_ERR "%s : gpio=%d value = %d \n",__FUNCTION__, wifi_cable, gpio_get_value(wifi_cable)); 
-	sprintf(antbuffer, "%c\n", (gpio_get_value(wifi_cable) > 0) ? 'D' : 'E');
 
-	return scnprintf(buf, PAGE_SIZE, "%s", antbuffer);
+	return scnprintf(buf, PAGE_SIZE, "%c\n", (gpio_get_value(wifi_cable) > 0) ? 'D' : 'E');
 }
 #endif
 #endif /* #if defined (SEC_CONFIG_SUPPORT_MIMO) */
