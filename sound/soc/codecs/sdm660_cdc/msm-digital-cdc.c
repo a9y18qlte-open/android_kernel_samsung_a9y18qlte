@@ -2127,7 +2127,7 @@ static int msm_dig_cdc_probe(struct platform_device *pdev)
 
 	/*update delay mute time from dtsi*/
 	if (!of_property_read_u32(pdev->dev.of_node,
-				"qcom,tx-unmute-delay-ms", &delay_time));
+				"qcom,tx-unmute-delay-ms", &delay_time))
 		tx_unmute_delay = delay_time;
 
 	ret = of_property_read_u32(pdev->dev.of_node, "reg",
