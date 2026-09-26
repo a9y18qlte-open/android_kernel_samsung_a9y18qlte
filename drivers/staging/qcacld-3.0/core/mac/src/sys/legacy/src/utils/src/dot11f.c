@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2018 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2020 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -4297,6 +4297,7 @@ uint32_t dot11f_unpack_ie_ese_version(tpAniSirGlobal pCtx,
 
 #define SigIeESEVersion (0x0035)
 
+
 uint32_t dot11f_unpack_ie_ext_cap(tpAniSirGlobal pCtx,
 				 uint8_t *pBuf,
 				 uint8_t ielen,
@@ -8336,7 +8337,7 @@ uint32_t dot11f_unpack_ie_esp_information(tpAniSirGlobal pCtx,
 	uint32_t status = DOT11F_PARSE_SUCCESS;
 	(void) pBuf; (void)ielen; /* Shutup the compiler */
 	if (pDst->present)
-		status = DOT11F_DUPLICATE_IE;
+		return DOT11F_DUPLICATE_IE;
 	pDst->present = 1;
 	pDst->num_data = (uint8_t)(ielen);
 	if (ielen > 96) {
@@ -8361,7 +8362,7 @@ uint32_t dot11f_unpack_ie_ext_chan_switch_ann(tpAniSirGlobal pCtx,
 	uint32_t status = DOT11F_PARSE_SUCCESS;
 	(void) pBuf; (void)ielen; /* Shutup the compiler */
 	if (pDst->present)
-		status = DOT11F_DUPLICATE_IE;
+		return DOT11F_DUPLICATE_IE;
 	pDst->present = 1;
 	if (unlikely(ielen < 1)) {
 		pDst->present = 0;
@@ -8409,7 +8410,7 @@ uint32_t dot11f_unpack_ie_fils_assoc_delay_info(tpAniSirGlobal pCtx,
 	uint32_t status = DOT11F_PARSE_SUCCESS;
 	(void) pBuf; (void)ielen; /* Shutup the compiler */
 	if (pDst->present)
-		status = DOT11F_DUPLICATE_IE;
+		return DOT11F_DUPLICATE_IE;
 	pDst->present = 1;
 	if (unlikely(ielen < 1)) {
 		pDst->present = 0;
@@ -8676,7 +8677,7 @@ uint32_t dot11f_unpack_ie_he_cap(tpAniSirGlobal pCtx,
 	uint8_t tmp81__;
 	(void) pBuf; (void)ielen; /* Shutup the compiler */
 	if (pDst->present)
-		status = DOT11F_DUPLICATE_IE;
+		return DOT11F_DUPLICATE_IE;
 	pDst->present = 1;
 	if (unlikely(ielen < 4)) {
 		pDst->present = 0;
@@ -8896,7 +8897,7 @@ uint32_t dot11f_unpack_ie_he_op(tpAniSirGlobal pCtx,
 	uint32_t tmp82__;
 	(void) pBuf; (void)ielen; /* Shutup the compiler */
 	if (pDst->present)
-		status = DOT11F_DUPLICATE_IE;
+		return DOT11F_DUPLICATE_IE;
 	pDst->present = 1;
 	if (unlikely(ielen < 4)) {
 		pDst->present = 0;
@@ -9110,7 +9111,7 @@ uint32_t dot11f_unpack_ie_mu_edca_param_set(tpAniSirGlobal pCtx,
 	uint8_t tmp92__;
 	(void) pBuf; (void)ielen; /* Shutup the compiler */
 	if (pDst->present)
-		status = DOT11F_DUPLICATE_IE;
+		return DOT11F_DUPLICATE_IE;
 	pDst->present = 1;
 	if (unlikely(ielen < 1)) {
 		pDst->present = 0;
@@ -9274,7 +9275,7 @@ uint32_t dot11f_unpack_ie_roaming_consortium_sel(tpAniSirGlobal pCtx,
 	uint32_t status = DOT11F_PARSE_SUCCESS;
 	(void) pBuf; (void)ielen; /* Shutup the compiler */
 	if (pDst->present)
-		status = DOT11F_DUPLICATE_IE;
+		return DOT11F_DUPLICATE_IE;
 	pDst->present = 1;
 	pDst->num_data = (uint8_t)(ielen);
 	DOT11F_MEMCPY(pCtx, pDst->data, pBuf, (ielen));
@@ -15752,8 +15753,6 @@ uint32_t dot11f_get_packed_ie_he_op(tpAniSirGlobal pCtx,
 				*pnNeeded += 1;
 				break;
 			}
-		} else {
-			break;
 		}
 		if (pIe->mbssid_ap) {
 			switch (pIe->mbssid_ap) {
@@ -15761,8 +15760,6 @@ uint32_t dot11f_get_packed_ie_he_op(tpAniSirGlobal pCtx,
 				*pnNeeded += 1;
 				break;
 			}
-		} else {
-			break;
 		}
 		break;
 	}
@@ -15921,7 +15918,7 @@ uint32_t dot11f_get_packed_del_ts_size(tpAniSirGlobal pCtx,
 	tDot11fDelTS *pFrm, uint32_t *pnNeeded)
 {
 	uint32_t status = 0;
-	*pnNeeded = 7;
+	*pnNeeded = 8;
 	status = get_packed_size_core(pCtx, (uint8_t *)pFrm, pnNeeded,
 				      IES_DelTS);
 	return status;
@@ -26301,8 +26298,6 @@ uint32_t dot11f_pack_ie_he_op(tpAniSirGlobal pCtx,
 				pBuf += 1;
 				break;
 			}
-		} else {
-			break;
 		}
 		if (pSrc->mbssid_ap) {
 			switch (pSrc->mbssid_ap) {
@@ -26312,8 +26307,6 @@ uint32_t dot11f_pack_ie_he_op(tpAniSirGlobal pCtx,
 				/* fieldsEndFlag = 1 */
 				break;
 			}
-		} else {
-			break;
 		}
 		break;
 	}

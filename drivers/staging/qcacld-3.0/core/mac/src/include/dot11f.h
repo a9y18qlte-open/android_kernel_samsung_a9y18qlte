@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2018 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2020 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -441,7 +441,7 @@ typedef struct sDot11fFfTSInfo {
 	uint32_t          unused:15;
 } tDot11fFfTSInfo;
 
-#define DOT11F_FF_TSINFO_LEN (3)
+#define DOT11F_FF_TSINFO_LEN (4)
 
 void dot11f_unpack_ff_ts_info(tpAniSirGlobal, uint8_t *, tDot11fFfTSInfo *);
 
