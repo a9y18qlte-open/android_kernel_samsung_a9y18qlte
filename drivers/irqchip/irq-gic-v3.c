@@ -25,6 +25,7 @@
 #include <linux/percpu.h>
 #include <linux/slab.h>
 #include <linux/module.h>
+#include <linux/wakeup_reason.h>
 
 #include <linux/irqchip.h>
 #include <linux/irqchip/arm-gic-v3.h>
@@ -446,6 +447,7 @@ static void gic_show_resume_irq(struct gic_chip_data *gic)
 			name = "stray irq";
 		else if (desc->action && desc->action->name)
 			name = desc->action->name;
+		log_base_wakeup_reason(irq);
 #ifdef CONFIG_SEC_PM
 		pr_info("Resume caused by IRQ %d(GIC %d) %s\n", irq, i, name);
 		last_resume_kernel_reason_len +=

@@ -865,7 +865,7 @@ static void blk_add_trace_rq_complete(void *ignore,
 static void blk_add_trace_bio(struct request_queue *q, struct bio *bio,
 			      u32 what, int error)
 {
- 	struct blk_trace *bt;
+	struct blk_trace *bt;
 	struct task_struct *tsk = current;
 
 	rcu_read_lock();
