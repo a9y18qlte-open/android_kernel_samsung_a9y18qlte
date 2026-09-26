@@ -199,17 +199,16 @@ util_scan_get_phymode_5g(struct scan_cache_entry *scan_params)
 	if (htcap)
 		ht_cap = le16toh(htcap->hc_cap);
 
+	if (ht_cap & WLAN_HTCAP_C_CHWIDTH40)
+		phymode = WLAN_PHYMODE_11NA_HT40;
+	else
+		phymode = WLAN_PHYMODE_11NA_HT20;
+
 	if (util_scan_entry_vhtcap(scan_params) && vhtop) {
 		switch (vhtop->vht_op_chwidth) {
 		case WLAN_VHTOP_CHWIDTH_2040:
-			if ((ht_cap & WLAN_HTCAP_C_CHWIDTH40) &&
-			   (htinfo->hi_extchoff ==
-			   WLAN_HTINFO_EXTOFFSET_ABOVE))
-				phymode = WLAN_PHYMODE_11AC_VHT40PLUS;
-			else if ((ht_cap & WLAN_HTCAP_C_CHWIDTH40) &&
-			   (htinfo->hi_extchoff ==
-			   WLAN_HTINFO_EXTOFFSET_BELOW))
-				phymode = WLAN_PHYMODE_11AC_VHT40MINUS;
+			if (ht_cap & WLAN_HTCAP_C_CHWIDTH40)
+				phymode = WLAN_PHYMODE_11AC_VHT40;
 			else
 				phymode = WLAN_PHYMODE_11AC_VHT20;
 			break;
@@ -230,16 +229,10 @@ util_scan_get_phymode_5g(struct scan_cache_entry *scan_params)
 		default:
 			scm_err("bad channel: %d",
 					vhtop->vht_op_chwidth);
+			phymode = WLAN_PHYMODE_11AC_VHT20;
 			break;
 		}
-	} else if ((ht_cap & WLAN_HTCAP_C_CHWIDTH40) &&
-	   (htinfo->hi_extchoff == WLAN_HTINFO_EXTOFFSET_ABOVE))
-		phymode = WLAN_PHYMODE_11NA_HT40PLUS;
-	else if ((ht_cap & WLAN_HTCAP_C_CHWIDTH40) &&
-	   (htinfo->hi_extchoff == WLAN_HTINFO_EXTOFFSET_BELOW))
-		phymode = WLAN_PHYMODE_11NA_HT40MINUS;
-	else
-		phymode = WLAN_PHYMODE_11NA_HT20;
+	}
 
 	return phymode;
 }
@@ -288,6 +281,29 @@ util_scan_get_phymode_2g(struct scan_cache_entry *scan_params)
 		}
 	}
 
+	/* Check for VHT only if HT cap is present */
+	if (!IS_WLAN_PHYMODE_HT(phymode))
+		return phymode;
+
+	if (util_scan_entry_vhtcap(scan_params) && vhtop) {
+		switch (vhtop->vht_op_chwidth) {
+		case WLAN_VHTOP_CHWIDTH_2040:
+			if (phymode == WLAN_PHYMODE_11NG_HT40PLUS)
+				phymode = WLAN_PHYMODE_11AC_VHT40PLUS_2G;
+			else if (phymode == WLAN_PHYMODE_11NG_HT40MINUS)
+				phymode = WLAN_PHYMODE_11AC_VHT40MINUS_2G;
+			else
+				phymode = WLAN_PHYMODE_11AC_VHT20_2G;
+
+			break;
+		default:
+			scm_info("bad vht_op_chwidth: %d",
+				 vhtop->vht_op_chwidth);
+			phymode = WLAN_PHYMODE_11AC_VHT20_2G;
+			break;
+		}
+	}
+
 	return phymode;
 }
 
@@ -311,12 +327,18 @@ util_scan_parse_chan_switch_wrapper_ie(struct scan_cache_entry *scan_params,
 		}
 		switch (sub_ie->ie_id) {
 		case WLAN_ELEMID_COUNTRY:
+			if (sub_ie->ie_len < WLAN_COUNTRY_IE_MIN_LEN)
+				return QDF_STATUS_E_INVAL;
 			scan_params->ie_list.country = (uint8_t *)sub_ie;
 			break;
 		case WLAN_ELEMID_WIDE_BAND_CHAN_SWITCH:
+			if (sub_ie->ie_len != WLAN_WIDE_BW_CHAN_SWITCH_IE_LEN)
+				return QDF_STATUS_E_INVAL;
 			scan_params->ie_list.widebw = (uint8_t *)sub_ie;
 			break;
 		case WLAN_ELEMID_VHT_TX_PWR_ENVLP:
+			if (sub_ie->ie_len > WLAN_TPE_IE_MAX_LEN)
+				return QDF_STATUS_E_INVAL;
 			scan_params->ie_list.txpwrenvlp = (uint8_t *)sub_ie;
 			break;
 		}
@@ -472,6 +494,14 @@ util_scan_parse_vendor_ie(struct scan_cache_entry *scan_params,
 			return QDF_STATUS_E_INVAL;
 
 		scan_params->ie_list.adaptive_11r = (uint8_t *)ie +
+						sizeof(struct ie_header);
+	} else if (is_sae_single_pmk_oui((uint8_t *)ie)) {
+		if (ie->ie_len < OUI_LENGTH ||
+		    ie->ie_len > MAX_SAE_SINGLE_PMK_IE_LEN) {
+			scm_debug("Invalid sae single pmk OUI");
+			return QDF_STATUS_E_INVAL;
+		}
+		scan_params->ie_list.single_pmk = (uint8_t *)ie +
 						sizeof(struct ie_header);
 	}
 	return QDF_STATUS_SUCCESS;
@@ -707,7 +737,8 @@ static void util_scan_update_esp_data(struct wlan_esp_ie *esp_information,
 	esp_ie = (struct wlan_esp_ie *)
 		util_scan_entry_esp_info(scan_entry);
 
-	total_elements  = esp_ie->esp_len;
+	// Ignore ESP_ID_EXTN element
+	total_elements  = esp_ie->esp_len - 1;
 	data = (uint8_t *)esp_ie + 3;
 	do_div(total_elements, ESP_INFORMATION_LIST_LENGTH);
 
@@ -717,7 +748,7 @@ static void util_scan_update_esp_data(struct wlan_esp_ie *esp_information,
 	}
 
 	for (i = 0; i < total_elements &&
-		data < ((uint8_t *)esp_ie + esp_ie->esp_len + 3); i++) {
+	     data < ((uint8_t *)esp_ie + esp_ie->esp_len); i++) {
 		esp_info = (struct wlan_esp_info *)data;
 		if (esp_info->access_category == ESP_AC_BK) {
 			qdf_mem_copy(&esp_information->esp_info_AC_BK,
@@ -865,6 +896,21 @@ static void scm_fill_adaptive_11r_cap(struct scan_cache_entry *scan_entry)
 }
 #endif
 
+static void util_scan_set_security(struct scan_cache_entry *scan_params)
+{
+	if (util_scan_entry_wpa(scan_params))
+		scan_params->security_type |= SCAN_SECURITY_TYPE_WPA;
+
+	if (util_scan_entry_rsn(scan_params))
+		scan_params->security_type |= SCAN_SECURITY_TYPE_RSN;
+	if (util_scan_entry_wapi(scan_params))
+		scan_params->security_type |= SCAN_SECURITY_TYPE_WAPI;
+
+	if (!scan_params->security_type &&
+	    scan_params->cap_info.wlan_caps.privacy)
+		scan_params->security_type |= SCAN_SECURITY_TYPE_WEP;
+}
+
 qdf_list_t *
 util_scan_unpack_beacon_frame(struct wlan_objmgr_pdev *pdev, uint8_t *frame,
 			      qdf_size_t frame_len, uint32_t frm_subtype,
@@ -997,6 +1043,7 @@ util_scan_unpack_beacon_frame(struct wlan_objmgr_pdev *pdev, uint8_t *frame,
 
 	scan_entry->nss = util_scan_scm_calc_nss_supported_by_ap(scan_entry);
 	scm_fill_adaptive_11r_cap(scan_entry);
+	util_scan_set_security(scan_entry);
 
 	util_scan_scm_update_bss_with_esp_data(scan_entry);
 	qbss_load = (struct qbss_load_ie *)

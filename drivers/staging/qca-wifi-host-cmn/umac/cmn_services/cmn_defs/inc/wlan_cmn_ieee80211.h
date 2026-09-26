@@ -73,6 +73,10 @@
 #define OUI_TYPE_BITS           24
 #define MAX_ADAPTIVE_11R_IE_LEN 8
 
+#define SAE_SINGLE_PMK_OUI          0x964000
+#define SAE_SINGLE_PMK_TYPE         0x03
+#define MAX_SAE_SINGLE_PMK_IE_LEN   8
+
 /* Temporary vendor specific IE for 11n pre-standard interoperability */
 #define VENDOR_HT_OUI       0x00904c
 #define VENDOR_HT_CAP_ID    51
@@ -113,6 +117,17 @@
 #define WLAN_MOBILITY_DOMAIN_IE_MAX_LEN          3
 #define WLAN_OPMODE_IE_MAX_LEN                   1
 #define WLAN_IBSSDFS_IE_MIN_LEN                  7
+
+/* Wide band channel switch IE length */
+#define WLAN_WIDE_BW_CHAN_SWITCH_IE_LEN          3
+
+/* Number of max TX power elements supported plus size of Transmit Power
+ * Information element.
+ */
+#define WLAN_TPE_IE_MAX_LEN                      9
+
+/* Max channel switch time IE length */
+#define WLAN_MAX_CHAN_SWITCH_TIME_IE_LEN         4
 
 /* HT capability flags */
 #define WLAN_HTCAP_C_ADVCODING             0x0001
@@ -1378,6 +1393,21 @@ is_adaptive_11r_oui(uint8_t *frm)
 {
 	return (frm[1] > OUI_LENGTH) && (LE_READ_4(frm + 2) ==
 		((ADAPTIVE_11R_OUI_TYPE << OUI_TYPE_BITS) | ADAPTIVE_11R_OUI));
+}
+
+/**
+ * is_sae_single_pmk_oui() - Fun to check if vendor IE is sae single pmk OUI
+ * @frm: vendor IE pointer
+ *
+ * API to check if vendor IE is sae single pmk OUI
+ *
+ * Return: true if its sae single pmk OUI
+ */
+static inline bool
+is_sae_single_pmk_oui(uint8_t *frm)
+{
+	return (frm[1] > OUI_LENGTH) && (LE_READ_4(frm + 2) ==
+		((SAE_SINGLE_PMK_TYPE << OUI_TYPE_BITS) | SAE_SINGLE_PMK_OUI));
 }
 
 /**
