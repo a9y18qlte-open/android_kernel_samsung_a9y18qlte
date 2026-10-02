@@ -17908,6 +17908,7 @@
 
 				odm {
 					compatible = "android,odm";
+status = "disabled";
 					dev = "/dev/block/platform/soc/1da4000.ufshc/by-name/odm";
 					type = "ext4";
 					mnt_flags = "ro";
