@@ -109,7 +109,9 @@ static inline class_##_name##_t class_##_name##ext##_constructor(_init_args) \
 	CLASS(_name, __UNIQUE_ID(guard))
 
 #define scoped_guard(_name, args...)					\
-	for (CLASS(_name, scope)(args),					\
+	for (class_##_name##_t scope __maybe_unused			\
+		__cleanup(class_##_name##_destructor) =			\
+		class_##_name##_constructor(args),			\
 	     *done = NULL; !done; done = (void *)1)
 
 /*
