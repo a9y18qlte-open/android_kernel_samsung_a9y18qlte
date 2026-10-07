@@ -1,0 +1,313 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: thongass000 <tienthong2004@gmail.com>
+Date: Sun, 4 Oct 2026 18:14:17 +0700
+Subject: [PATCH 1/2] ksu: Fix Linux 4.4 kernel compatibility and
+ kernel_read/write compat helpers
+
+---
+ kernel/compat/kernel_compat.h     | 13 +++++++++++++
+ kernel/feature/adb_root.c         |  1 +
+ kernel/feature/selinux_hide.c     |  1 +
+ kernel/feature/sucompat.c         |  2 +-
+ kernel/feature/sulog.c            |  2 +-
+ kernel/hook/setuid_hook.c         |  4 ++++
+ kernel/infra/su_mount_ns.c        |  4 ++++
+ kernel/manager/apk_sign.c         |  5 +++--
+ kernel/manager/throne_tracker.c   |  9 +++++++--
+ kernel/policy/allowlist.c         | 13 ++++++-------
+ kernel/policy/app_profile.c       |  4 ++++
+ kernel/runtime/ksud_integration.c |  4 ++--
+ kernel/sulog/event.c              |  1 +
+ kernel/sulog/event.h              |  2 +-
+ 14 files changed, 49 insertions(+), 16 deletions(-)
+
+diff --git a/kernel/compat/kernel_compat.h b/kernel/compat/kernel_compat.h
+index 090aab85..ef316c28 100644
+--- a/kernel/compat/kernel_compat.h
++++ b/kernel/compat/kernel_compat.h
+@@ -127,4 +127,17 @@ extern long strncpy_from_user_nofault(char *dst, const void __user *unsafe_addr,
+ #endif
+ #endif
+ 
++
++#include <linux/compat.h>
++#include <linux/kernel.h>
++#ifndef in_compat_syscall
++#define in_compat_syscall() is_compat_task()
++#endif
++#ifndef ALIGN_DOWN
++#define ALIGN_DOWN(x, a) __ALIGN_KERNEL((x), (a))
++#endif
++#ifndef __nocfi
++#define __nocfi
++#endif
++
+ #endif // #ifndef __KSU_H_KERNEL_COMPAT
+diff --git a/kernel/feature/adb_root.c b/kernel/feature/adb_root.c
+index 57ae7977..c8c018aa 100644
+--- a/kernel/feature/adb_root.c
++++ b/kernel/feature/adb_root.c
+@@ -1,3 +1,4 @@
++#include "compat/kernel_compat.h"
+ #include <asm/ptrace.h>
+ #include <linux/namei.h>
+ #include <linux/path.h>
+diff --git a/kernel/feature/selinux_hide.c b/kernel/feature/selinux_hide.c
+index 39c38bd2..d1a47d53 100644
+--- a/kernel/feature/selinux_hide.c
++++ b/kernel/feature/selinux_hide.c
+@@ -20,6 +20,7 @@
+ #include  "uapi/feature.h"
+ #include "selinux/selinux.h"
+ #include "feature/selinux_hide.h"
++#include "compat/kernel_compat.h"
+ 
+ static struct page *fake_status = NULL;
+ static DEFINE_MUTEX(fake_status_init_mutex);
+diff --git a/kernel/feature/sucompat.c b/kernel/feature/sucompat.c
+index e6e43ee3..caf81303 100644
+--- a/kernel/feature/sucompat.c
++++ b/kernel/feature/sucompat.c
+@@ -11,7 +11,7 @@
+ #include <linux/pgtable.h>
+ #endif
+ #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 14, 0)
+-#include <linux/compiler_types.h>
++#include <linux/compiler.h>
+ #include <linux/compiler.h>
+ #endif
+ #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
+diff --git a/kernel/feature/sulog.c b/kernel/feature/sulog.c
+index 78a3f141..2013a770 100644
+--- a/kernel/feature/sulog.c
++++ b/kernel/feature/sulog.c
+@@ -1,7 +1,7 @@
+ #include <linux/cache.h>
+ #include <linux/version.h>
+ #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 14, 0)
+-#include <linux/compiler_types.h>
++#include <linux/compiler.h>
+ #else
+ #include <linux/compiler.h>
+ #endif
+diff --git a/kernel/hook/setuid_hook.c b/kernel/hook/setuid_hook.c
+index 3184deb2..62ac5908 100644
+--- a/kernel/hook/setuid_hook.c
++++ b/kernel/hook/setuid_hook.c
+@@ -1,6 +1,10 @@
+ #include <linux/compiler.h>
+ #include <linux/version.h>
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
+ #include <linux/sched/signal.h>
++#else
++#include <linux/sched.h>
++#endif
+ #include <linux/slab.h>
+ #include <linux/task_work.h>
+ #include <linux/thread_info.h>
+diff --git a/kernel/infra/su_mount_ns.c b/kernel/infra/su_mount_ns.c
+index f5fabee2..cadb10b7 100644
+--- a/kernel/infra/su_mount_ns.c
++++ b/kernel/infra/su_mount_ns.c
+@@ -8,7 +8,11 @@
+ #include <linux/namei.h>
+ #include <linux/proc_ns.h>
+ #include <linux/pid.h>
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
+ #include <linux/sched/task.h>
++#else
++#include <linux/sched.h>
++#endif
+ #include <linux/slab.h>
+ #include <linux/syscalls.h>
+ #include <linux/version.h>
+diff --git a/kernel/manager/apk_sign.c b/kernel/manager/apk_sign.c
+index 17d69d14..eb20555e 100644
+--- a/kernel/manager/apk_sign.c
++++ b/kernel/manager/apk_sign.c
+@@ -1,3 +1,4 @@
++#include "compat/kernel_compat.h"
+ #include "util.h"
+ #include <linux/err.h>
+ #include <linux/fs.h>
+@@ -80,7 +81,7 @@ static bool read_exact(struct file *fp, void *buffer, size_t size, loff_t *pos,
+ 	if (*pos < 0 || *pos > end || size > (size_t)(end - *pos))
+ 		return false;
+ 
+-	return kernel_read(fp, buffer, size, pos) == (ssize_t)size;
++	return ksu_kernel_read_compat(fp, buffer, size, pos) == (ssize_t)size;
+ }
+ 
+ static bool read_length_prefixed_end(struct file *fp, loff_t *pos, loff_t container_end, loff_t *value_end)
+@@ -190,7 +191,7 @@ static __always_inline bool check_v2_signature(char *path,
+ 		}
+ 
+ 		pos = file_size - search_size;
+-		kernel_read(fp, eocd_buffer, search_size, &pos);
++		ksu_kernel_read_compat(fp, eocd_buffer, search_size, &pos);
+ 
+ 		if (search_size >= eocd_min_size) {
+ 			long j;
+diff --git a/kernel/manager/throne_tracker.c b/kernel/manager/throne_tracker.c
+index 6cf7d626..f9665ffb 100644
+--- a/kernel/manager/throne_tracker.c
++++ b/kernel/manager/throne_tracker.c
+@@ -1,3 +1,4 @@
++#include "compat/kernel_compat.h"
+ #include "ksu.h"
+ #include "linux/cred.h"
+ #include "util.h"
+@@ -130,7 +131,11 @@ FILLDIR_RETURN_TYPE my_actor(struct dir_context *ctx, const char *name,
+ 	} else {
+ 		if ((namelen == 8) && (strncmp(name, "base.apk", namelen) == 0)) {
+ 			struct apk_path_hash *pos, *n;
++			#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 7, 0)
++			unsigned int hash = full_name_hash(dirpath, strlen(dirpath));
++#else
+ 			unsigned int hash = full_name_hash(NULL, dirpath, strlen(dirpath));
++#endif
+ 			list_for_each_entry (pos, &apk_path_hash_list, list) {
+ 				if (hash == pos->hash) {
+ 					pos->exists = true;
+@@ -278,13 +283,13 @@ void track_throne(bool prune_only)
+ 	loff_t line_start = 0;
+ 	char buf[KSU_MAX_PACKAGE_NAME];
+ 	for (;;) {
+-		ssize_t count = kernel_read(fp, &chr, sizeof(chr), &pos);
++		ssize_t count = ksu_kernel_read_compat(fp, &chr, sizeof(chr), &pos);
+ 		if (count != sizeof(chr))
+ 			break;
+ 		if (chr != '\n')
+ 			continue;
+ 
+-		count = kernel_read(fp, buf, sizeof(buf) - 1, &line_start);
++		count = ksu_kernel_read_compat(fp, buf, sizeof(buf) - 1, &line_start);
+ 		if (count <= 0) {
+ 			break;
+ 		}
+diff --git a/kernel/policy/allowlist.c b/kernel/policy/allowlist.c
+index d2bf80a2..fd2b0ce1 100644
+--- a/kernel/policy/allowlist.c
++++ b/kernel/policy/allowlist.c
+@@ -12,7 +12,6 @@
+ #include <linux/printk.h>
+ #include <linux/slab.h>
+ #include <linux/types.h>
+-#include <linux/compiler_types.h>
+ #include <linux/hashtable.h>
+ #include <linux/kref.h>
+ 
+@@ -430,12 +429,12 @@ static void do_persistent_allow_list(struct callback_head *_cb)
+     }
+ 
+ 	// store magic and version
+-	if (kernel_write(fp, &magic, sizeof(magic), &off) != sizeof(magic)) {
++	if (ksu_kernel_write_compat(fp, &magic, sizeof(magic), &off) != sizeof(magic)) {
+ 		pr_err("save_allow_list write magic failed.\n");
+ 		goto close_file;
+ 	}
+ 
+-	if (kernel_write(fp, &version, sizeof(version), &off) != sizeof(version)) {
++	if (ksu_kernel_write_compat(fp, &version, sizeof(version), &off) != sizeof(version)) {
+ 		pr_err("save_allow_list write version failed.\n");
+ 		goto close_file;
+ 	}
+@@ -445,7 +444,7 @@ static void do_persistent_allow_list(struct callback_head *_cb)
+         pr_info("save allow list, name: %s uid :%d, allow: %d\n", p->profile.key, p->profile.curr_uid,
+                 p->profile.allow_su);
+ 
+-        kernel_write(fp, &p->profile, sizeof(p->profile), &off);
++        ksu_kernel_write_compat(fp, &p->profile, sizeof(p->profile), &off);
+     }
+     mutex_unlock(&allowlist_mutex);
+ 
+@@ -532,14 +531,14 @@ void ksu_load_allow_list()
+ 	}
+ 
+ 	// verify magic
+-	if (kernel_read(fp, &magic, sizeof(magic), &off) != sizeof(magic) ||
++	if (ksu_kernel_read_compat(fp, &magic, sizeof(magic), &off) != sizeof(magic) ||
+ 	    magic != FILE_MAGIC) {
+ 		pr_err("allowlist file invalid: %d!\n", magic);
+ 		goto exit;
+ 	}
+ 
+ 	// get file version
+-	if (kernel_read(fp, &version, sizeof(version), &off) != sizeof(version)) {
++	if (ksu_kernel_read_compat(fp, &version, sizeof(version), &off) != sizeof(version)) {
+ 		pr_err("allowlist read version: %d failed\n", version);
+ 		goto exit;
+ 	}
+@@ -557,7 +556,7 @@ void ksu_load_allow_list()
+ 	while (true) {
+ 		struct app_profile profile;
+ 
+-		ret = kernel_read(fp, &profile, app_profile_size, &off);
++		ret = ksu_kernel_read_compat(fp, &profile, app_profile_size, &off);
+ 
+ 		if (ret != app_profile_size) {
+ 			if (ret != 0)
+diff --git a/kernel/policy/app_profile.c b/kernel/policy/app_profile.c
+index 7e93477a..dc8cd657 100644
+--- a/kernel/policy/app_profile.c
++++ b/kernel/policy/app_profile.c
+@@ -4,8 +4,12 @@
+ #include <linux/capability.h>
+ #include <linux/cred.h>
+ #include <linux/sched.h>
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
+ #include <linux/sched/user.h>
+ #include <linux/sched/signal.h>
++#else
++#include <linux/sched.h>
++#endif
+ #include <linux/seccomp.h>
+ #include <linux/slab.h>
+ #include <linux/thread_info.h>
+diff --git a/kernel/runtime/ksud_integration.c b/kernel/runtime/ksud_integration.c
+index 05b6b339..99b2f72b 100644
+--- a/kernel/runtime/ksud_integration.c
++++ b/kernel/runtime/ksud_integration.c
+@@ -134,7 +134,7 @@ static void load_module_rc_once(void)
+ 		goto out_close_file;
+ 	}
+ 
+-	r = kernel_read(f, module_rc_buf, fsize, &pos);
++	r = ksu_kernel_read_compat(f, module_rc_buf, fsize, &pos);
+ 
+ 	if (r <= 0) {
+ 		pr_err("module rc: read failed: %zd\n", r);
+@@ -502,7 +502,7 @@ append_ksu_rc:
+ 	if (ksu_rc_pos < ksu_rc_len) {
+ 		// copy_to_iter returns the number of copied bytes
+ 		append_count =
+-			copy_to_iter(KERNEL_SU_RC + ksu_rc_pos, ksu_rc_len - ksu_rc_pos, to);
++			copy_to_iter((void *)(KERNEL_SU_RC + ksu_rc_pos), ksu_rc_len - ksu_rc_pos, to);
+ 		if (!append_count) {
+ 			pr_info("read_iter_proxy: append error, totally appended %ld\n",
+ 				ksu_rc_pos);
+diff --git a/kernel/sulog/event.c b/kernel/sulog/event.c
+index a8ce4711..3cda91b4 100644
+--- a/kernel/sulog/event.c
++++ b/kernel/sulog/event.c
+@@ -1,3 +1,4 @@
++#include "compat/kernel_compat.h"
+ #include <asm/current.h>
+ #include <linux/compat.h>
+ #include <linux/cred.h>
+diff --git a/kernel/sulog/event.h b/kernel/sulog/event.h
+index fb329a1f..a3d1ba0c 100644
+--- a/kernel/sulog/event.h
++++ b/kernel/sulog/event.h
+@@ -3,7 +3,7 @@
+ 
+ #include <linux/version.h>
+ #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 14, 0)
+-#include <linux/compiler_types.h>
++#include <linux/compiler.h>
+ #else
+ #include <linux/compiler.h>
+ #endif
+-- 
+2.34.1
+

@@ -212,4 +212,10 @@ obj-$(CONFIG_FIVE_TEE_DRIVER)	+= five/
 obj-$(CONFIG_ICD)		+= security/samsung/icdrv/
 
 
+# KernelSU-Next is an upstream release; apply this tree's patches to it first.
+ifneq ($(CONFIG_KSU),)
+ifneq ($(shell $(srctree)/scripts/apply_ksu_patches.sh),ok)
+$(error Applying KernelSU-Next-patches failed)
+endif
+endif
 obj-$(CONFIG_KSU) += kernelsu/
