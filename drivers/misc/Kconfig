@@ -382,7 +382,7 @@ config SENSORS_APDS990X
 	   module will be called apds990x. If unsure, say N here.
 
 config TIMA_LOG
-	tristate "Support for dumping TIMA log"
+	bool "Support for dumping TIMA log"
 	default n
 	help
 	  This option enables support for dumping TIMA log
