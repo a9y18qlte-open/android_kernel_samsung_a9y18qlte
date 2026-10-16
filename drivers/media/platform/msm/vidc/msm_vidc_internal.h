@@ -301,6 +301,10 @@ struct msm_vidc_inst {
 	u32 colour_space;
 	u32 operating_rate;
 	bool allow_ubwc_linear_event;
+	/* encoder input frame rate measured from buffer timestamps */
+	u64 input_ts_first;
+	u64 input_ts_last;
+	u32 input_ts_count;
 };
 
 extern struct msm_vidc_drv *vidc_driver;
