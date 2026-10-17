@@ -5903,6 +5903,5 @@ CONFIG_QMI_ENCDEC=y
 # CONFIG_QMI_ENCDEC_DEBUG is not set
 CONFIG_CGROUP_BPF=y
 
-CONFIG_KSU=y
-CONFIG_KSU_LSM_SECURITY_HOOKS=y
-CONFIG_KSU_MANUAL_HOOKS=y
+# KernelSU-Next defaults to y; it is opt-in through vendor/ksu.config
+# CONFIG_KSU is not set
