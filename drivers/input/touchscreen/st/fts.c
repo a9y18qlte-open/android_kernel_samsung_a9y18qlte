@@ -895,7 +895,7 @@ static unsigned char *fts_key_status_event_handler(struct fts_ts_info *info, uns
 	if (event[2] != 0) {			/* event[2] contain the bitmask of the keys that are actually pressed */
 		switch (event[2]) {
 		case KEY1:
-			value = KEY_HOMEPAGE;
+			value = KEY_POWER;
 			logError(0, "%s %s: Button HOME !\n", tag, __func__);
 		break;
 
@@ -2146,7 +2146,7 @@ static int fts_probe(struct i2c_client *client,
 
 #ifdef PHONE_KEY
 	/* KEY associated to the touch screen buttons */
-	input_set_capability(info->input_dev, EV_KEY, KEY_HOMEPAGE);
+	input_set_capability(info->input_dev, EV_KEY, KEY_POWER);
 	input_set_capability(info->input_dev, EV_KEY, KEY_BACK);
 	input_set_capability(info->input_dev, EV_KEY, KEY_MENU);
 #endif
