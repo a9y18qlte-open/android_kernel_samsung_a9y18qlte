@@ -1137,9 +1137,6 @@ struct samsung_display_driver_data {
 	/* send recovery pck before sending image date (for ESD recovery) */
 	int send_esd_recovery;
 
-	/* DOZE */
-	struct wake_lock doze_wakelock;
-
 	/* graudal acl */
 	int gradual_acl_val;
 	int gradual_pre_acl_on;

@@ -2137,10 +2137,6 @@ static int mdss_fb_blank_sub(int blank_mode, struct fb_info *info,
 	switch (blank_mode) {
 	case FB_BLANK_UNBLANK:
 		pr_debug("unblank called. cur pwr state=%d\n", cur_power_state);
-#if defined(CONFIG_FB_MSM_MDSS_SAMSUNG)
-		if (wake_lock_active(&vdd->doze_wakelock))
-			wake_unlock(&vdd->doze_wakelock);
-#endif
 		ret = mdss_fb_blank_unblank(mfd);
 		break;
 	case BLANK_FLAG_ULP:
@@ -2151,10 +2147,6 @@ static int mdss_fb_blank_sub(int blank_mode, struct fb_info *info,
 			return 0;
 		}
 
-#if defined(CONFIG_FB_MSM_MDSS_SAMSUNG)
-		if (wake_lock_active(&vdd->doze_wakelock))
-			wake_unlock(&vdd->doze_wakelock);
-#endif
 		ret = mdss_fb_blank_blank(mfd, req_power_state);
 		break;
 	case BLANK_FLAG_LP:
@@ -2172,10 +2164,6 @@ static int mdss_fb_blank_sub(int blank_mode, struct fb_info *info,
 				break;
 		}
 
-#if defined(CONFIG_FB_MSM_MDSS_SAMSUNG)
-		if (!wake_lock_active(&vdd->doze_wakelock))
-			wake_lock(&vdd->doze_wakelock);
-#endif
 		ret = mdss_fb_blank_blank(mfd, req_power_state);
 		break;
 	case FB_BLANK_HSYNC_SUSPEND:
@@ -2183,10 +2171,6 @@ static int mdss_fb_blank_sub(int blank_mode, struct fb_info *info,
 	default:
 		req_power_state = MDSS_PANEL_POWER_OFF;
 		pr_debug("blank powerdown called\n");
-#if defined(CONFIG_FB_MSM_MDSS_SAMSUNG)
-		if (wake_lock_active(&vdd->doze_wakelock))
-			wake_unlock(&vdd->doze_wakelock);
-#endif
 		ret = mdss_fb_blank_blank(mfd, req_power_state);
 		break;
 	}
@@ -5395,9 +5379,6 @@ EXPORT_SYMBOL(mdss_fb_get_phys_info);
 int __init mdss_fb_init(void)
 {
 	int rc = -ENODEV;
-#if defined(CONFIG_FB_MSM_MDSS_SAMSUNG)
-	struct samsung_display_driver_data *vdd = samsung_get_vdd();
-#endif
 
 	if (fb_get_options("msmfb", NULL))
 		return rc;
@@ -5405,9 +5386,6 @@ int __init mdss_fb_init(void)
 	if (platform_driver_register(&mdss_fb_driver))
 		return rc;
 
-#if defined(CONFIG_FB_MSM_MDSS_SAMSUNG)
-	wake_lock_init(&vdd->doze_wakelock, WAKE_LOCK_SUSPEND,"doze-wakelock");
-#endif
 	return 0;
 }
 
