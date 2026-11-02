@@ -12649,7 +12649,7 @@
 			reg = <0xc175000 0x600 0xc144000 0x1f000>;
 			interrupt-names = "spi_irq", "spi_bam_irq";
 			interrupts = <0x0 0x5f 0x0 0x0 0xee 0x0>;
-			spi-max-frequency = <0x2faf080>;
+			spi-max-frequency = <0x124f800>;
 			qcom,use-bam;
 			qcom,ver-reg-exists;
 			qcom,bam-consumer-pipe-index = <0x4>;
@@ -12661,7 +12661,16 @@
 			pinctrl-1 = <0x1a8>;
 			clock-names = "iface_clk", "core_clk";
 			clocks = <0xa2 0x23 0xa2 0x25>;
-			status = "disabled";
+			status = "okay";
+
+			ese_spi@0 {
+				compatible = "p61";
+				reg = <0x0>;
+				spi-max-frequency = <0xf42400>;
+				p61-ap_vendor = "qualcomm";
+				clock-names = "pclk", "sclk";
+				clocks = <0xa2 0x23 0xa2 0x25>;
+			};
 		};
 
 		spi@c176000 {
