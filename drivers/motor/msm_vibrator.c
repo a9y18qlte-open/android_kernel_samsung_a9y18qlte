@@ -103,7 +103,7 @@ static void vibe_set_intensity(int intensity)
 		vib_volt = LOW_INTENSITY_VOLTAGE;
 	else if (intensity < MID_INTENSITY)
 		vib_volt = MID_INTENSITY_VOLTAGE;
-	else if (intensity < HIGH_INTENSITY)
+	else if (intensity <= HIGH_INTENSITY)
 		vib_volt = HIGH_INTENSITY_VOLTAGE;
 	else {
 		vib_volt = HIGH_INTENSITY_VOLTAGE;
@@ -148,11 +148,13 @@ static void set_vibrator(struct msm_vib *vib, int enable)
 	}
 	else {
 		if (enable) {
-			if (!regulator_is_enabled(vib->vdd)) {
 #ifdef CONFIG_DC_MOTOR_PMIC
-				ret = regulator_set_voltage(vib->vdd, vib_volt, vib_volt);
+			if (vib_volt > 0) {
+				ret = regulator_set_voltage(vib->vdd, vib_volt, HIGH_INTENSITY_VOLTAGE);
 				pr_info("[VIB] voltage: %dmV\n", vib_volt/DIVIDE_VOLT);
+			}
 #endif
+			if (!regulator_is_enabled(vib->vdd)) {
 				ret = regulator_enable(vib->vdd);
 				if (ret) {
 					pr_err("[VIB] power on error!\n");
@@ -279,6 +281,13 @@ static ssize_t intensity_store(struct device *dev,
 
 	vibe_set_intensity(set_intensity);
 	vib->intensity = set_intensity;
+#ifdef CONFIG_DC_MOTOR_PMIC
+	if (vib->vdd_type && vib->vdd && vib_volt > 0) {
+		regulator_set_voltage(vib->vdd, vib_volt, HIGH_INTENSITY_VOLTAGE);
+		pr_info("[VIB] intensity: %d, voltage: %dmV\n",
+			set_intensity, vib_volt / DIVIDE_VOLT);
+	}
+#endif
 
 	return count;
 }
@@ -377,7 +386,7 @@ static int msm_vibrator_probe(struct platform_device *pdev)
 	}
 
 	vib->timeout = VIB_DEFAULT_TIMEOUT;
-	if (vib->motor_pwm) {
+	if (vib->motor_pwm || vib->vdd_type) {
 		vib->intensity = MAX_INTENSITY;
 		vibe_set_intensity(vib->intensity);
 	}
@@ -406,7 +415,7 @@ static int msm_vibrator_probe(struct platform_device *pdev)
 		goto err_read_vib;
 	}
 
-	if (vib->motor_pwm) {
+	if (vib->motor_pwm || vib->vdd_type) {
 		rc = sysfs_create_file(&vib->timed_dev.dev->kobj, &dev_attr_intensity.attr);
 		if (rc) {
 			pr_err("[VIB] failed to register intensity sysfs\n");
