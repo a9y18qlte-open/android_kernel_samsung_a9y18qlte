@@ -99,9 +99,9 @@ static void vibe_set_intensity(int intensity)
 #ifdef CONFIG_DC_MOTOR_PMIC
 	if (intensity == NO_INTENSITY)
 		vib_volt = NO_INTENSITY_VOLTAGE;
-	else if (intensity < LOW_INTENSITY)
+	else if (intensity <= LOW_INTENSITY)
 		vib_volt = LOW_INTENSITY_VOLTAGE;
-	else if (intensity < MID_INTENSITY)
+	else if (intensity <= MID_INTENSITY)
 		vib_volt = MID_INTENSITY_VOLTAGE;
 	else if (intensity <= HIGH_INTENSITY)
 		vib_volt = HIGH_INTENSITY_VOLTAGE;
