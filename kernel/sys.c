@@ -1247,6 +1247,11 @@ SYSCALL_DEFINE1(newuname, struct new_utsname __user *, name)
 	down_read(&uts_sem);
 	memcpy(&tmp, utsname(), sizeof(tmp));
 	up_read(&uts_sem);
+
+	if (!strcmp(current->group_leader->comm, "netbpfload") ||
+	    !strcmp(current->group_leader->comm, "bpfloader") ||
+	    !strcmp(current->group_leader->comm, "netd"))
+		strlcpy(tmp.release, "5.10.239", sizeof(tmp.release));
 	if (copy_to_user(name, &tmp, sizeof(tmp)))
 		return -EFAULT;
 
