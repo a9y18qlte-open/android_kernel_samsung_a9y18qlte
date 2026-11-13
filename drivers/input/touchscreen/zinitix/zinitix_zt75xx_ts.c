@@ -723,6 +723,7 @@ struct bt532_ts_info {
 	bool flip_enable;
 	bool spay_enable;
 	bool aod_enable;
+	bool aot_enable;
 	bool singletap_enable;
 	bool sleep_mode;
 	bool glove_touch;
@@ -2658,7 +2659,7 @@ static bool mini_init_touch(struct bt532_ts_info *info)
 		write_reg(info->client, ZT75XX_SET_AOD_Y_REG, 0);
 	}
 
-	if((pdata->support_lpm_mode)&&(info->spay_enable||info->aod_enable)){
+	if((pdata->support_lpm_mode)&&(info->spay_enable||info->aod_enable||info->aot_enable)){
 		if(info->sleep_mode){
 #if ESD_TIMER_INTERVAL
 			esd_timer_stop(info);
@@ -3266,7 +3267,7 @@ static void bt532_ts_close(struct input_dev *dev)
 	flush_work(&info->tmr_work);
 #endif
 
-	if((info->pdata->support_lpm_mode) && (info->spay_enable || info->aod_enable) && (!info->prox_power_off)){
+	if((info->pdata->support_lpm_mode) && (info->spay_enable || info->aod_enable || info->aot_enable) && (!info->prox_power_off)){
 		down(&info->work_lock);
 		prev_work_state = info->work_state;
 		info->work_state = SLEEP_MODE_IN;
@@ -3282,7 +3283,7 @@ static void bt532_ts_close(struct input_dev *dev)
 				(info->lpm_mode & (1 << BIT_EVENT_SINGLE_TAP)) ? 1 : 0);
 
 		write_reg(info->client, 0x0A, 0x0A);
-		if (info->aod_enable) {
+		if (info->aod_enable || info->aot_enable) {
 			/*
 			 * mini_init_touch() clears the AOD area on every re-init,
 			 * so program it here. Without an explicit area, use the
@@ -7375,6 +7376,38 @@ static void dead_zone_enable(void *device_data)
 	return;
 }
 
+/*
+ * The AOD double tap gesture serves both the AOD setting (aod_enable) and the
+ * double tap to wake setting (aot_enable); keep it armed while either is on.
+ */
+static void zinitix_update_aod_bit(struct bt532_ts_info *info)
+{
+	if (info->aod_enable || info->aot_enable)
+		zinitix_bit_set(info->lpm_mode, BIT_EVENT_AOD);
+	else
+		zinitix_bit_clr(info->lpm_mode, BIT_EVENT_AOD);
+}
+
+static void aot_enable(void *device_data)
+{
+	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
+	struct bt532_ts_info *info = container_of(sec, struct bt532_ts_info, sec);
+	char buff[SEC_CMD_STR_LEN] = { 0 };
+	int val = sec->cmd_param[0];
+
+	sec_cmd_set_default_result(sec);
+
+	info->aot_enable = val ? 1 : 0;
+	zinitix_update_aod_bit(info);
+
+	snprintf(buff, sizeof(buff), "aot_enable %s", val ? "enable" : "disable");
+	sec_cmd_set_cmd_result(sec, buff, strnlen(buff, sizeof(buff)));
+	sec_cmd_set_cmd_exit(sec);
+	sec->cmd_state = SEC_CMD_STATUS_OK;
+
+	input_info(true, &info->client->dev, "%s, %s\n", __func__, sec->cmd_result);
+}
+
 static void spay_enable(void *device_data)
 {
 	struct sec_cmd_data *sec = (struct sec_cmd_data *)device_data;
@@ -7415,13 +7448,8 @@ static void aod_enable(void *device_data)
 
 	sec_cmd_set_default_result(sec);
 
-	if(val) {
-		info->aod_enable = 1;
-		zinitix_bit_set(info->lpm_mode, BIT_EVENT_AOD);
-	}else {
-		info->aod_enable = 0;
-		zinitix_bit_clr(info->lpm_mode, BIT_EVENT_AOD);
-	}
+	info->aod_enable = val ? 1 : 0;
+	zinitix_update_aod_bit(info);
 
 	snprintf(buff, sizeof(buff),
 			"aod_enable %s", val ? "enable" : "disable");
@@ -7974,7 +8002,7 @@ static ssize_t dt2w_enable_show(struct device *dev,
 	struct sec_cmd_data *sec = dev_get_drvdata(dev);
 	struct bt532_ts_info *info = container_of(sec, struct bt532_ts_info, sec);
 
-	return snprintf(buf, SEC_CMD_BUF_SIZE, "%d\n", info->aod_enable ? 1 : 0);
+	return snprintf(buf, SEC_CMD_BUF_SIZE, "%d\n", info->aot_enable ? 1 : 0);
 }
 
 /* Simple 0/1 node for the power HAL's tap-to-wake feature. */
@@ -7991,17 +8019,22 @@ static ssize_t dt2w_enable_store(struct device *dev,
 	if (ret != 0)
 		return ret;
 
-	if (value) {
-		info->aod_enable = 1;
-		zinitix_bit_set(info->lpm_mode, BIT_EVENT_AOD);
-	} else {
-		info->aod_enable = 0;
-		zinitix_bit_clr(info->lpm_mode, BIT_EVENT_AOD);
-	}
+	info->aot_enable = value ? 1 : 0;
+	zinitix_update_aod_bit(info);
 
 	input_info(true, &info->client->dev, "%s: %lu\n", __func__, value);
 
 	return count;
+}
+
+/*
+ * One UI only registers its double tap to wake setting when bit 0 (AOT) is
+ * set here; the sysinput fallback reads this node.
+ */
+static ssize_t support_feature_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	return snprintf(buf, SEC_CMD_BUF_SIZE, "%d\n", 1);
 }
 
 static DEVICE_ATTR(scrub_pos, S_IRUGO, scrub_position_show, NULL);
@@ -8013,6 +8046,7 @@ static DEVICE_ATTR(module_id, S_IRUGO, read_module_id_show, NULL);
 static DEVICE_ATTR(ta_mode, S_IWUSR | S_IWGRP, NULL, set_ta_mode_store);
 static DEVICE_ATTR(prox_power_off, S_IRUGO | S_IWUSR | S_IWGRP, prox_power_off_show, prox_power_off_store);
 static DEVICE_ATTR(dt2w_enable, S_IRUGO | S_IWUSR | S_IWGRP, dt2w_enable_show, dt2w_enable_store);
+static DEVICE_ATTR(support_feature, S_IRUGO, support_feature_show, NULL);
 
 static struct attribute *touchscreen_attributes[] = {
 	&dev_attr_scrub_pos.attr,
@@ -8024,6 +8058,7 @@ static struct attribute *touchscreen_attributes[] = {
 	&dev_attr_ta_mode.attr,
 	&dev_attr_prox_power_off.attr,
 	&dev_attr_dt2w_enable.attr,
+	&dev_attr_support_feature.attr,
 	NULL,
 };
 
@@ -8278,6 +8313,7 @@ static struct sec_cmd sec_cmds[] = {
 	{SEC_CMD("clear_cover_mode", clear_cover_mode),},
 	{SEC_CMD("spay_enable", spay_enable),},
 	{SEC_CMD("aod_enable", aod_enable),},
+	{SEC_CMD("aot_enable", aot_enable),},
 	{SEC_CMD("singletap_enable", singletap_enable),},
 	{SEC_CMD("set_aod_rect", set_aod_rect),},
 	{SEC_CMD("get_wet_mode", get_wet_mode),},
