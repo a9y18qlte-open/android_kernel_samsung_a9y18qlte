@@ -659,6 +659,21 @@ static int sm5705_run_BCD_rescan(struct regmap_desc *pdesc, int value)
 	return ret;
 }
 
+static int sm5705_enable_chgdet(struct regmap_desc *pdesc, int enable)
+{
+	int attr, ret;
+
+	attr = RSVDID2_DCD_TIME_EN;
+
+	ret = regmap_write_value(pdesc, attr, enable ? 1 : 0);
+	if (ret < 0)
+		pr_err("%s DCD_TIME_EN write fail.\n", __func__);
+	else
+		_REGMAP_TRACE(pdesc, 'w', ret, attr, enable);
+
+	return ret;
+}
+
 #define VBUS_OFFSET		5
 static int sm5705_get_vbus_value(struct regmap_desc *pdesc)
 {
@@ -1524,6 +1539,7 @@ static struct vendor_ops sm5705_muic_vendor_ops = {
 	.prepare_switch = sm5705_prepare_switch,
 #endif
 	.run_chgdet = sm5705_run_chgdet,
+	.enable_chgdet = sm5705_enable_chgdet,
 	.get_dcdtmr_irq = sm5705_get_dcdtmr_irq,
 #if defined(CONFIG_SEC_DEBUG) || defined(CONFIG_SEC_NAD)
 	.usb_to_ta = sm5705_usb_to_ta,
