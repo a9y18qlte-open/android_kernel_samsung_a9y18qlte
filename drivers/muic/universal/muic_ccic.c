@@ -311,6 +311,7 @@ int mdev_continue_for_TA_USB(muic_data_t *pmuic, int mdev)
 
 	/* W/A for Incomplete insertion case */
 	if (pdesc->ccic_evt_attached == MUIC_CCIC_NOTI_ATTACH &&
+			!pdesc->ccic_evt_rprd &&
 			pmuic->is_dcdtmr_intr && vbus && pdesc->ccic_evt_dcdcnt < 1) {
 		pr_info("%s: Incomplete insertion. Do chgdet again\n", __func__);
 		pmuic->is_dcdtmr_intr = false;
