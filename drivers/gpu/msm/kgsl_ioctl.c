@@ -3,6 +3,8 @@
  * Copyright (c) 2008-2019, 2021, The Linux Foundation. All rights reserved.
  */
 
+#include <linux/sched/signal.h>
+
 #include "kgsl_device.h"
 #include "kgsl_sync.h"
 
@@ -137,6 +139,9 @@ long kgsl_ioctl_helper(struct file *filep, unsigned int cmd, unsigned long arg,
 	unsigned char data[128] = { 0 };
 	unsigned int nr = _IOC_NR(cmd);
 	long ret;
+
+	if (dev_priv->process_priv->pid != task_tgid(current))
+		return -EPERM;
 
 	if (nr >= len || cmds[nr].func == NULL)
 		return -ENOIOCTLCMD;
